@@ -9,6 +9,7 @@ let initialState = {
     current: {},
     favorites: [],
     fetchingArr: false,
+    nextPage: 31,
 }
 let URL = "https://rickandmortyapi.com/api/character"
 let client = new ApolloClient({
@@ -24,6 +25,7 @@ let GET_FAVORITES = "GET_FAVORITES"
 let GET_FAVORITES_SUCCESS = "GET_FAVORITES_SUCCESS"
 let GET_FAVORITES_ERROR = "GET_FAVORITES_ERROR"
 let UPDATE_CHARACTERS = "UPDATE_CHARACTERS"
+let UPDATE_PAGE = "UPDATE_PAGE"
 
 // Reducer
 export default function reducer(state = initialState, action) {
@@ -79,6 +81,11 @@ export default function reducer(state = initialState, action) {
             return {
                 ...state,
                 ...action.payload,
+            }
+        case UPDATE_PAGE:
+            return {
+                ...state,
+                nextPage: action.payload
             }
         default:
             return state
@@ -151,8 +158,13 @@ export const addToFavoritesAction = () => (dispatch, getState) => {
 }
 
 export const removeCharacterAction = () => (dispatch, getState) => {
+    console.log("remove--");
     let { array } = getState().characters
     array.shift()
+    if(!array.length){
+        getCharacterAction()(dispatch, getState)
+        return
+    }
     if (array.length > 0) {
         dispatch({
             type: REMOVE_CHARACTER,
@@ -163,7 +175,6 @@ export const removeCharacterAction = () => (dispatch, getState) => {
 
 
 export const getCharacterAction = () => (dispatch, getState) => {
-
 
     let us = {}
     let chars = {}
@@ -179,17 +190,24 @@ export const getCharacterAction = () => (dispatch, getState) => {
 
     // MEDIANTE GRAPHQL
     let query = gql`
-        {
-            characters{
+        query ($page:Int){
+            characters(page:$page){
+                info{
+                    pages
+                    next
+                    prev
+                }
                 results{
-                    name
                     image
+                    name
                 }
             }
-        }
+        }    
     `
+    let { nextPage } = getState().characters
     return client.query({
-        query
+        query,
+        variables: { page: nextPage }
     }).then(({ data, error }) => {
         if (error) {
             dispatch({
@@ -203,13 +221,21 @@ export const getCharacterAction = () => (dispatch, getState) => {
                 type: UPDATE_CHARACTERS,
                 payload: { ...chars },
             })
-        } else {
+        }
+        if (us.loggedIn) {
             dispatch({
                 type: GET_CHARACTERS_SUCCESS,
-                param: data.characters.results
+                payload: data.characters.results
+            })
+            dispatch({
+                type: UPDATE_PAGE,
+                payload:data.characters.info.next ? data.characters.info.next : 1 
             })
         }
+        // console.log(data.characters.results);
 
+        // } else {
+        // }
     })
 
 
